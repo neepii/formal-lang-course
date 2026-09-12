@@ -14,16 +14,18 @@ def teardown_module(module):
 
 def test_labeled_two_cycles_graph_test_1(tmp_path):
     tmp_path = tmp_path / "two_cycles.dot"
-    g = graphs.labeled_two_cycles_graph_to_dot(3, 4, filename=tmp_path)
+    g1 = graphs.labeled_two_cycles_graph_to_dot(3, 4, filename=tmp_path)
 
-    assert isinstance(g, nx.MultiDiGraph)
-    assert g.number_of_nodes() == 8
-    assert g.number_of_edges() == 9
+    assert isinstance(g1, nx.MultiDiGraph)
+    assert g1.number_of_nodes() == 8
+    assert g1.number_of_edges() == 9
     assert tmp_path.exists()
 
-    text = tmp_path.read_text()
-    assert "label=a" in text
-    assert "label=b" in text
+    g2 = nx.nx_pydot.read_dot(tmp_path)
+
+    assert g2.number_of_nodes() == 8
+    assert g2.number_of_edges() == 9
+    assert graphs.get_unique_labels(g2) == {"a", "b"}
 
 
 def test_labeled_two_cycles_graph_test_2(tmp_path):
@@ -35,9 +37,11 @@ def test_labeled_two_cycles_graph_test_2(tmp_path):
     assert g.number_of_edges() == 22
     assert tmp_path.exists()
 
-    text = tmp_path.read_text()
-    assert "label=a" in text
-    assert "label=b" in text
+    g2 = nx.nx_pydot.read_dot(tmp_path)
+
+    assert g2.number_of_nodes() == 21
+    assert g2.number_of_edges() == 22
+    assert graphs.get_unique_labels(g2) == {"a", "b"}
 
 
 # You need internet access to run these tests
