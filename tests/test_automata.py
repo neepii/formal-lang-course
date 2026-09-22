@@ -1,11 +1,8 @@
 import pytest  # noqa: F401
 import project  # on import will print something from __init__ file # noqa: F401
-from pyformlang.finite_automaton import DeterministicFiniteAutomaton
-from pyformlang.finite_automaton import NondeterministicFiniteAutomaton
 from pyformlang.regular_expression import Regex
 import project.library.automata as automata
 import project.library.graphs as graphs
-import pyformlang as pfl
 import networkx as nx
 import cfpq_data
 from typing import List, Set
@@ -119,7 +116,7 @@ def test_graph_to_nfa_with_only_start_states():
         assert state not in nfa.final_states
 
 
-def test_graph_to_nfa_with_only_start_states():
+def test_graph_to_nfa_with_only_final_states():
     graph = nx.MultiDiGraph()
     num_of_nodes = 10
     graph.add_nodes_from(range(num_of_nodes))
