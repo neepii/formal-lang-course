@@ -1,10 +1,9 @@
-from typing import Set, Tuple
+from typing import Set, Tuple, List
 from pyformlang.finite_automaton import DeterministicFiniteAutomaton
 from pyformlang.finite_automaton import NondeterministicFiniteAutomaton
 from pyformlang.finite_automaton import State
 from pyformlang.finite_automaton import Symbol
 from pyformlang.regular_expression import Regex
-import pyformlang as pfl
 import networkx as nx
 
 
@@ -18,7 +17,6 @@ def regex_to_dfa(regex: str) -> DeterministicFiniteAutomaton:
 def graph_to_nfa(
     graph: nx.MultiDiGraph, start_states: Set[int], final_states: Set[int]
 ) -> NondeterministicFiniteAutomaton:
-
     nfa = NondeterministicFiniteAutomaton()
     if start_states is None and final_states is None:
         for state in graph:
