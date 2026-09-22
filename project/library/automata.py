@@ -1,6 +1,8 @@
 from typing import Set, Tuple
 from pyformlang.finite_automaton import DeterministicFiniteAutomaton
 from pyformlang.finite_automaton import NondeterministicFiniteAutomaton
+from pyformlang.finite_automaton import State
+from pyformlang.finite_automaton import Symbol
 from pyformlang.regular_expression import Regex
 import pyformlang as pfl
 import networkx as nx
@@ -24,16 +26,18 @@ def graph_to_nfa(
             nfa.add_start_state(number)
             nfa.add_final_state(number)
     else:
-        for start_state in start_states:
-            nfa.add_start_state(start_state)
-        for final_state in final_states:
-            nfa.add_final_state(final_state)
+        if start_states is not None:
+            for start_state in start_states:
+                nfa.add_start_state(start_state)
+        if final_states is not None:
+            for final_state in final_states:
+                nfa.add_final_state(final_state)
 
-    _delta: List[Tuple[int, str, int]] = []
-    for _u, _v, data in graph.edges(data=True):
-        _label: str = data.get("label")
-        if _label is None:
-            continue
-        delta.append((_u, _label, _v))
-    nfa.add_transitions(_delta)
+    delta: List[Tuple[int, str, int]] = []
+    for u, v, data in graph.edges(data=True):
+        label: str = data.get("label")
+        if label is not None:
+            delta.append((State(int(u)), Symbol(str(label)), State(int(v))))
+
+    nfa.add_transitions(delta)
     return nfa
