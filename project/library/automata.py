@@ -18,18 +18,27 @@ def graph_to_nfa(
     graph: nx.MultiDiGraph, start_states: Set[int], final_states: Set[int]
 ) -> NondeterministicFiniteAutomaton:
     nfa = NondeterministicFiniteAutomaton()
+
+    all_states: Set[int] = {int(state) for state in graph.nodes()}
+
     if start_states is None and final_states is None:
-        for state in graph:
-            number = int(state)
-            nfa.add_start_state(number)
-            nfa.add_final_state(number)
+        start_states = all_states
+        final_states = all_states
     else:
-        if start_states is not None:
-            for start_state in start_states:
-                nfa.add_start_state(start_state)
-        if final_states is not None:
-            for final_state in final_states:
-                nfa.add_final_state(final_state)
+        if start_states is None:
+            start_states = set()
+        elif len(start_states) == 0:
+            start_states = all_states
+
+        if final_states is None:
+            final_states = set()
+        elif len(final_states) == 0:
+            final_states = all_states
+
+    for start_state in start_states:
+        nfa.add_start_state(start_state)
+    for final_state in final_states:
+        nfa.add_final_state(final_state)
 
     delta: List[Tuple[int, str, int]] = []
     for u, v, data in graph.edges(data=True):
