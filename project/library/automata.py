@@ -57,19 +57,13 @@ class AdjacencyMatrixFA:
     def __init__(self, automaton):
         self.states = sorted(automaton.states, key=lambda s: repr(s.value))
         self.state_to_index = {s: i for i, s in enumerate(self.states)}
-        self.start_indices = {
-            self.state_to_index[s] for s in automaton.start_states
-        }
-        self.final_indices = {
-            self.state_to_index[s] for s in automaton.final_states
-        }
+        self.start_indices = {self.state_to_index[s] for s in automaton.start_states}
+        self.final_indices = {self.state_to_index[s] for s in automaton.final_states}
         self.n = len(self.states)
 
         self.bool_matrices: dict = {}
         for sym in automaton.symbols:
-            self.bool_matrices[sym.value] = sp.lil_matrix(
-                (self.n, self.n), dtype=bool
-            )
+            self.bool_matrices[sym.value] = sp.lil_matrix((self.n, self.n), dtype=bool)
 
         for src, transitions in automaton.to_dict().items():
             i = self.state_to_index[src]
@@ -80,9 +74,7 @@ class AdjacencyMatrixFA:
                     self.bool_matrices[sym.value][i, j] = True
 
         for sym in automaton.symbols:
-            self.bool_matrices[sym.value] = self.bool_matrices[
-                sym.value
-            ].tocsr()
+            self.bool_matrices[sym.value] = self.bool_matrices[sym.value].tocsr()
 
     def accepts(self, word: Iterable[Symbol]) -> bool:
         word = [str(getattr(item, "value", item)) for item in word]
@@ -108,9 +100,7 @@ class AdjacencyMatrixFA:
         m_any = m_any.astype(bool)
         m_any.eliminate_zeros()
 
-        closure = (
-            sp.identity(self.n, dtype=bool, format="csr") + m_any
-        ).astype(bool)
+        closure = (sp.identity(self.n, dtype=bool, format="csr") + m_any).astype(bool)
         closure.eliminate_zeros()
 
         for _ in range(self.n.bit_length() + 1):
@@ -122,9 +112,7 @@ class AdjacencyMatrixFA:
     def is_empty(self) -> bool:
         closure = self._transitive_closure()
         return all(
-            not closure[i, j]
-            for i in self.start_indices
-            for j in self.final_indices
+            not closure[i, j] for i in self.start_indices for j in self.final_indices
         )
 
     @classmethod
@@ -149,12 +137,8 @@ def intersect_automata(
 
     bool_matrices = {}
     for s in symbols:
-        m1 = automaton1.bool_matrices.get(
-            s, sp.csr_matrix((n1, n1), dtype=bool)
-        )
-        m2 = automaton2.bool_matrices.get(
-            s, sp.csr_matrix((n2, n2), dtype=bool)
-        )
+        m1 = automaton1.bool_matrices.get(s, sp.csr_matrix((n1, n1), dtype=bool))
+        m2 = automaton2.bool_matrices.get(s, sp.csr_matrix((n2, n2), dtype=bool))
         bool_matrices[s] = sp.kron(m1, m2).astype(bool).tocsr()
 
     start_indices = {
@@ -188,9 +172,7 @@ def tensor_based_rpq(
     intersection = intersect_automata(fa_dfa, fa_nfa)
     closure = intersection._transitive_closure()
 
-    node_to_index = {
-        int(s.value): idx for s, idx in fa_nfa.state_to_index.items()
-    }
+    node_to_index = {int(s.value): idx for s, idx in fa_nfa.state_to_index.items()}
     n2 = fa_nfa.n
     dfa_start = next(iter(fa_dfa.start_indices))
 
