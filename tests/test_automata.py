@@ -297,3 +297,80 @@ def test_tensor_based_rpq_star():
     expected = {(0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (2, 2)}
     assert automata.tensor_based_rpq("a*", graph, {0, 1, 2}, {0, 1, 2}) == expected
     assert automata.tensor_based_rpq("(a|b)*", graph, {0, 1, 2}, {0, 1, 2}) == expected
+
+
+def test_ms_bfs_based_rpq_single_edge():
+    graph = nx.MultiDiGraph()
+    graph.add_nodes_from([0, 1])
+    graph.add_edge(0, 1, label="a")
+
+    assert automata.ms_bfs_based_rpq("a", graph, {0}, {1}) == {(0, 1)}
+    assert automata.ms_bfs_based_rpq("a", graph, {0, 1}, {0, 1}) == {(0, 1)}
+
+
+def test_ms_bfs_based_rpq_path():
+    graph = nx.MultiDiGraph()
+    graph.add_nodes_from([0, 1, 2])
+    graph.add_edge(0, 1, label="a")
+    graph.add_edge(1, 2, label="b")
+
+    assert automata.ms_bfs_based_rpq("a b", graph, {0, 1, 2}, {0, 1, 2}) == {(0, 2)}
+    assert automata.ms_bfs_based_rpq("a", graph, {0, 1, 2}, {0, 1, 2}) == {(0, 1)}
+
+
+def test_ms_bfs_based_rpq_star():
+    graph = nx.MultiDiGraph()
+    graph.add_nodes_from([0, 1, 2])
+    graph.add_edge(0, 1, label="a")
+    graph.add_edge(1, 2, label="a")
+    graph.add_edge(1, 1, label="b")
+
+    expected = {(0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (2, 2)}
+    assert automata.ms_bfs_based_rpq("a*", graph, {0, 1, 2}, {0, 1, 2}) == expected
+    assert automata.ms_bfs_based_rpq("(a|b)*", graph, {0, 1, 2}, {0, 1, 2}) == expected
+
+
+@pytest.mark.parametrize(
+    "nodes, edges, regex, expected",
+    [
+        ([1], [], "a", set()),
+        ([1], [], "a*", {(1, 1)}),
+        ([0, 1, 2], [], "a*", {(0, 0), (1, 1), (2, 2)}),
+        ([0, 1], [(0, 1, "b")], "a", set()),
+        ([0, 1], [(0, 1, "b")], "b", {(0, 1)}),
+        ([0, 1], [(0, 1, "b")], "b*", {(0, 0), (0, 1), (1, 1)}),
+        (
+            [0, 1, 2],
+            [(0, 1, "b"), (1, 2, "a"), (2, 0, "b")],
+            "(a | b)*",
+            {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)},
+        ),
+    ],
+)
+def test_ms_bfs_based_rpq_concrete_cases(nodes, edges, regex, expected):
+    graph = nx.MultiDiGraph()
+    graph.add_nodes_from(nodes)
+    for u, v, label in edges:
+        graph.add_edge(u, v, label=label)
+
+    node_set = set(graph.nodes())
+    assert automata.ms_bfs_based_rpq(regex, graph, node_set, node_set) == expected
+
+
+def test_ms_bfs_based_rpq_matches_tensor_based_rpq():
+    graph_specs = [
+        ([0, 1], [(0, 1, "a")], "a"),
+        ([0, 1], [(0, 1, "a")], "a*"),
+        ([0, 1, 2], [(0, 1, "a"), (1, 2, "b")], "a b"),
+        ([0, 1, 2], [(0, 1, "a"), (1, 2, "a"), (1, 1, "b")], "(a|b)*"),
+        ([0, 1, 2, 3], [(0, 1, "a"), (1, 2, "a"), (2, 3, "a"), (0, 3, "b")], "a*"),
+    ]
+    for nodes, edges, regex in graph_specs:
+        graph = nx.MultiDiGraph()
+        graph.add_nodes_from(nodes)
+        for u, v, label in edges:
+            graph.add_edge(u, v, label=label)
+        node_set = set(graph.nodes())
+        assert automata.ms_bfs_based_rpq(
+            regex, graph, node_set, node_set
+        ) == automata.tensor_based_rpq(regex, graph, node_set, node_set)
