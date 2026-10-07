@@ -188,3 +188,77 @@ def tensor_based_rpq(
                     break
 
     return result
+
+
+def ms_bfs_based_rpq(
+    regex: str,
+    graph: nx.MultiDiGraph,
+    start_nodes: set[int],
+    final_nodes: set[int],
+) -> set[tuple[int, int]]:
+    dfa = regex_to_dfa(regex)
+    nfa = graph_to_nfa(graph, start_nodes, final_nodes)
+
+    fa_dfa = AdjacencyMatrixFA(dfa)
+    fa_nfa = AdjacencyMatrixFA(nfa)
+
+    node_to_index = {int(s.value): idx for s, idx in fa_nfa.state_to_index.items()}
+    symbols = set(fa_dfa.bool_matrices) & set(fa_nfa.bool_matrices)
+    transposed_dfa_matrices = {
+        sym: fa_dfa.bool_matrices[sym].transpose() for sym in symbols
+    }
+
+    dfa_start = next(iter(fa_dfa.start_indices))
+    dfa_final_indices = fa_dfa.final_indices
+
+    start_nodes_sorted = sorted(start_nodes)
+    if not start_nodes_sorted:
+        return set()
+    nfa_start_indexes = [node_to_index[s] for s in start_nodes_sorted]
+    k = len(nfa_start_indexes)
+
+    block_diag_dfa = {
+        sym: sp.block_diag(
+            [transposed_dfa_matrices[sym] for _ in range(k)], format="csr"
+        )
+        for sym in symbols
+    }
+
+    front = sp.vstack(
+        [
+            sp.csr_matrix(
+                ([True], ([dfa_start], [nfa_start])),
+                shape=(fa_dfa.n, fa_nfa.n),
+                dtype=bool,
+            )
+            for nfa_start in nfa_start_indexes
+        ]
+    )
+
+    visited = front.copy()
+
+    while front.count_nonzero() > 0:
+        new_front = sp.csr_matrix((k * fa_dfa.n, fa_nfa.n), dtype=bool)
+        for sym in symbols:
+            step = block_diag_dfa[sym] @ front @ fa_nfa.bool_matrices[sym]
+            new_front = new_front + step
+
+        new_front = new_front.astype(bool)
+        new_front.eliminate_zeros()
+        front = new_front - new_front.multiply(visited)
+        front = front.astype(bool)
+        front.eliminate_zeros()
+        visited = (visited + front).astype(bool)
+
+    result = set()
+    for i, start_node in enumerate(start_nodes_sorted):
+        block = i * fa_dfa.n
+        for final_node in final_nodes:
+            final_index = node_to_index[final_node]
+            if any(
+                visited[block + dfa_final, final_index]
+                for dfa_final in dfa_final_indices
+            ):
+                result.add((start_node, final_node))
+
+    return result
