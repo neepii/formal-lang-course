@@ -211,9 +211,12 @@ def ms_bfs_based_rpq(
     dfa_start = next(iter(fa_dfa.start_indices))
     dfa_final_indices = fa_dfa.final_indices
 
-    start_nodes_sorted = sorted(start_nodes)
-    if not start_nodes_sorted:
-        return set()
+    start_nodes_sorted = (
+        sorted(start_nodes)
+        if start_nodes
+        else sorted({int(state) for state in graph.nodes()})
+    )
+
     nfa_start_indexes = [node_to_index[s] for s in start_nodes_sorted]
     k = len(nfa_start_indexes)
 
@@ -253,7 +256,7 @@ def ms_bfs_based_rpq(
     result = set()
     for i, start_node in enumerate(start_nodes_sorted):
         block = i * fa_dfa.n
-        for final_node in final_nodes:
+        for final_node in nfa.final_states:
             final_index = node_to_index[final_node]
             if any(
                 visited[block + dfa_final, final_index]
