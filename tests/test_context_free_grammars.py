@@ -36,8 +36,7 @@ def _has_unit_productions(cfg: CFG) -> bool:
 def _words(cfg: CFG, max_length: int) -> set:
     """Language of the grammar restricted to words up to max_length."""
     return {
-        "".join(str(sym.value) for sym in word)
-        for word in cfg.get_words(max_length)
+        "".join(str(sym.value) for sym in word) for word in cfg.get_words(max_length)
     }
 
 

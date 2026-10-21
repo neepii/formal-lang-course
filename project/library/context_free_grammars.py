@@ -1,14 +1,6 @@
-from typing import Set, Tuple, List, Iterable
-from pyformlang.finite_automaton import DeterministicFiniteAutomaton
-from pyformlang.finite_automaton import NondeterministicFiniteAutomaton
-from pyformlang.finite_automaton import State
-from pyformlang.finite_automaton import Symbol
-from pyformlang.regular_expression import Regex
 from collections import deque
 import networkx as nx
-import scipy.sparse as sp
 import pyformlang.cfg
-from project.library.automata import graph_to_nfa
 from pyformlang.cfg import CFG, Production, Terminal, Variable
 
 
