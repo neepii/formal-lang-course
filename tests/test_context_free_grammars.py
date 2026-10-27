@@ -1,5 +1,7 @@
 import pytest  # noqa: F401
+import random
 import project  # noqa: F401
+import networkx as nx
 import project.library.context_free_grammars as cfgs
 from pyformlang.cfg import CFG, Terminal, Variable
 
@@ -91,3 +93,49 @@ def test_wcnf_splits_long_production():
     wcnf = cfgs.cfg_to_weak_normal_form(cfg)
     assert _is_wcnf(wcnf)
     assert _words(wcnf, 4) == {"abc"}
+
+
+def test_matrix_based_cfpq_simple_query():
+    cfg = CFG.from_text("S -> a b c")
+
+    graph = nx.MultiDiGraph()
+    graph.add_nodes_from(range(4))
+    graph.add_edge(0, 1, label="a")
+    graph.add_edge(1, 2, label="b")
+    graph.add_edge(2, 3, label="c")
+    graph.add_edge(3, 3, label="c")
+
+    assert cfgs.matrix_based_cfpq(cfg, graph, {0}, {3}) == {(0, 3)}
+    assert cfgs.matrix_based_cfpq(cfg, graph, {0}, {0, 1, 2}) == set()
+
+
+def test_matrix_based_cfpq_epsilon_and_recursion():
+    cfg = CFG.from_text("S -> a S b | epsilon")
+
+    graph = nx.MultiDiGraph()
+    graph.add_nodes_from(range(5))
+    graph.add_edge(0, 1, label="a")
+    graph.add_edge(1, 2, label="a")
+    graph.add_edge(2, 3, label="b")
+    graph.add_edge(3, 4, label="b")
+
+    assert cfgs.matrix_based_cfpq(cfg, graph, {0}, {4}) == {(0, 4)}
+    assert cfgs.matrix_based_cfpq(cfg, graph, {2}, {2}) == {(2, 2)}
+    assert cfgs.matrix_based_cfpq(cfg, graph, {0, 1, 2}, {3, 4}) == {(1, 3), (0, 4)}
+
+
+def test_matrix_based_cfpq_matches_hellings():
+    cfg = CFG.from_text("S -> a S b S | c")
+    labels = ["a", "b", "c"]
+
+    for seed in range(5):
+        rng = random.Random(seed)
+        graph = nx.MultiDiGraph()
+        graph.add_nodes_from(range(6))
+        for _ in range(12):
+            graph.add_edge(rng.randrange(6), rng.randrange(6), label=rng.choice(labels))
+
+        start_nodes, final_nodes = {0, 1, 2}, {3, 4, 5}
+        expected = cfgs.hellings_based_cfpq(cfg, graph, start_nodes, final_nodes)
+        actual = cfgs.matrix_based_cfpq(cfg, graph, start_nodes, final_nodes)
+        assert actual == expected
