@@ -1,7 +1,9 @@
+from typing import Set
 from collections import deque
 import networkx as nx
 import pyformlang.cfg
 from pyformlang.cfg import CFG, Production, Terminal, Variable
+import scipy.sparse as sp
 
 
 def cfg_to_weak_normal_form(cfg: pyformlang.cfg.CFG) -> pyformlang.cfg.CFG:
@@ -132,3 +134,104 @@ def hellings_based_cfpq(
                 result.add((u, v))
 
     return result
+
+
+def matrix_based_cfpq(
+    cfg: pyformlang.cfg.CFG,
+    graph: nx.DiGraph,
+    start_nodes: Set[int] = None,
+    final_nodes: Set[int] = None,
+) -> set[tuple[int, int]]:
+    wcnf = cfg_to_weak_normal_form(cfg)
+
+    nodes = sorted(graph.nodes(), key=repr)
+    node_to_index = {node: index for index, node in enumerate(nodes)}
+    n = len(nodes)
+
+    variables = set(wcnf.variables) | {wcnf.start_symbol}
+    decomposition = {var: sp.csr_matrix((n, n), dtype=bool) for var in variables}
+
+    terminal_heads = {}
+    unit_index = {}
+    left_index = {}
+    right_index = {}
+
+    for production in wcnf.productions:
+        head, body = production.head, production.body
+        if len(body) == 0:
+            decomposition[head] = sp.identity(n, dtype=bool, format="csr")
+        elif len(body) == 1 and isinstance(body[0], Terminal):
+            terminal_heads.setdefault(str(body[0].value), []).append(head)
+        elif len(body) == 1:
+            unit_index.setdefault(body[0], []).append(head)
+        else:
+            left, right = body[0], body[1]
+            left_index.setdefault(left, []).append((head, right))
+            right_index.setdefault(right, []).append((head, left))
+
+    edge_triples = {}
+    for u, v, data in graph.edges(data=True):
+        label = data.get("label")
+        if label is None:
+            continue
+        heads = terminal_heads.get(str(label))
+        if not heads:
+            continue
+        i, j = node_to_index[u], node_to_index[v]
+        for head in heads:
+            rows, cols = edge_triples.setdefault(head, ([], []))
+            rows.append(i)
+            cols.append(j)
+
+    for head, (rows, cols) in edge_triples.items():
+        data = [True] * len(rows)
+        edges = sp.csr_matrix((data, (rows, cols)), shape=(n, n), dtype=bool)
+        decomposition[head] = (decomposition[head] + edges).astype(bool)
+
+    queue = deque(var for var, matrix in decomposition.items() if matrix.nnz)
+    in_queue = set(queue)
+
+    while queue:
+        var = queue.popleft()
+        in_queue.discard(var)
+
+        additions = {}
+        for head in unit_index.get(var, ()):
+            additions[head] = decomposition[var]
+
+        for head, other in left_index.get(var, ()):
+            additions[head] = (
+                additions.get(head, sp.csr_matrix((n, n), dtype=bool))
+                + decomposition[var] @ decomposition[other]
+            )
+
+        for head, other in right_index.get(var, ()):
+            additions[head] = (
+                additions.get(head, sp.csr_matrix((n, n), dtype=bool))
+                + decomposition[other] @ decomposition[var]
+            )
+
+        for head, addition in additions.items():
+            merged = (decomposition[head] + addition).astype(bool)
+            merged.eliminate_zeros()
+            if merged.nnz != decomposition[head].nnz:
+                decomposition[head] = merged
+                if head not in in_queue:
+                    in_queue.add(head)
+                    queue.append(head)
+
+    all_nodes = set(nodes)
+    if start_nodes is None:
+        start_nodes = all_nodes
+    if final_nodes is None:
+        final_nodes = all_nodes
+
+    reachability = decomposition[wcnf.start_symbol]
+    return {
+        (u, v)
+        for u in start_nodes
+        for v in final_nodes
+        if u in node_to_index
+        and v in node_to_index
+        and reachability[node_to_index[u], node_to_index[v]]
+    }
