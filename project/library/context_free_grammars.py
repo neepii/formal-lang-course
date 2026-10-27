@@ -9,6 +9,7 @@ def cfg_to_weak_normal_form(cfg: pyformlang.cfg.CFG) -> pyformlang.cfg.CFG:
     prefix_new_nonterminals = "new_nonterminal_"
 
     cfg = cfg.eliminate_unit_productions()
+    cfg = cfg.remove_useless_symbols()
 
     existing_variables = set(cfg.variables)
 
