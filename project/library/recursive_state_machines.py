@@ -71,7 +71,6 @@ class FourRussians:
 
 
 class _BitMatrixTransitiveClosure:
-
     def __init__(self, n: int):
         self.n = n
         self.four_russians = FourRussians(n)
