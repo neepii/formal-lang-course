@@ -71,12 +71,6 @@ class FourRussians:
 
 
 class _BitMatrixTransitiveClosure:
-    """Incremental transitive closure over dense Boolean bit-vectors.
-
-    Rows and columns are Python ints, so one bitwise operation handles a whole
-    machine word at a time (word-RAM parallelism), which is the idea behind
-    the Four Russians speed-up for Boolean matrices.
-    """
 
     def __init__(self, n: int):
         self.n = n
@@ -136,11 +130,11 @@ def tensor_based_cfpq(
         m2[edge_label][node_to_index[u], node_to_index[v]] = True
         a2[edge_label][node_to_index[u], node_to_index[v]] = True
 
+    identity = sp.identity(n, dtype=bool, format="csr")
     for label_str in nonterminals:
         if start_states[label_str] & final_states[label_str]:
-            for i in range(n):
-                m2[label_str][i, i] = True
-                a2[label_str][i, i] = True
+            m2[label_str] = m2[label_str] + identity
+            a2[label_str] = a2[label_str] + identity
 
     start_nonterminals = {}
     final_nonterminals = {}
@@ -162,7 +156,9 @@ def tensor_based_cfpq(
     m3 = sp.csr_matrix((total, total), dtype=bool)
     closure = _BitMatrixTransitiveClosure(total)
 
-    while any(matrix.nnz for matrix in a2.values()):
+    fixpoint_not_reached = True
+    while fixpoint_not_reached:
+        fixpoint_not_reached = False
         m3_prime = sp.csr_matrix((total, total), dtype=bool)
         for label, added in a2.items():
             if added.nnz == 0 or label not in m1:
@@ -191,6 +187,7 @@ def tensor_based_cfpq(
             for label_str in nonterminals_between(s, f):
                 m2[label_str][x, y] = True
                 a2[label_str][x, y] = True
+                fixpoint_not_reached = True
 
     start_label = str(rsm.initial_label.value)
     reachability = m2.get(start_label)
@@ -203,15 +200,11 @@ def tensor_based_cfpq(
     if final_nodes is None:
         final_nodes = all_nodes
 
-    result = set()
-    for u in start_nodes:
-        if u not in node_to_index:
-            continue
-        i = node_to_index[u]
-        for v in final_nodes:
-            if v not in node_to_index:
-                continue
-            j = node_to_index[v]
-            if reachability[i, j]:
-                result.add((u, v))
-    return result
+    return {
+        (u, v)
+        for u in start_nodes
+        for v in final_nodes
+        if u in node_to_index
+        and v in node_to_index
+        and reachability[node_to_index[u], node_to_index[v]]
+    }
