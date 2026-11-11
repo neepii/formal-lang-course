@@ -1,5 +1,6 @@
 import networkx as nx
 import scipy.sparse as sp
+from collections import defaultdict, deque
 from pyformlang.cfg import CFG
 from pyformlang.finite_automaton import (
     NondeterministicFiniteAutomaton,
@@ -207,3 +208,119 @@ def tensor_based_cfpq(
         and v in node_to_index
         and reachability[node_to_index[u], node_to_index[v]]
     }
+
+
+def gll_based_cfpq(
+    rsm: RecursiveAutomaton,
+    graph: nx.DiGraph,
+    start_nodes: set[int] = None,
+    final_nodes: set[int] = None,
+) -> set[tuple[int, int]]:
+    def state_key(label: str, state: State) -> tuple[str, str]:
+        return label, repr(state.value)
+
+    boxes = {str(label.value): box for label, box in rsm.boxes.items()}
+    nonterminals = set(boxes)
+    initial_label = str(rsm.initial_label.value)
+
+    box_start_states = {}
+    box_final_states = {}
+    transitions = defaultdict(list)
+
+    for label, box in boxes.items():
+        box_start_states[label] = {state_key(label, state) for state in box.start_state}
+        box_final_states[label] = {
+            state_key(label, state) for state in box.final_states
+        }
+
+        for src, outgoing in box.dfa.to_dict().items():
+            src_key = state_key(label, src)
+            for symbol, targets in outgoing.items():
+                if isinstance(targets, State):
+                    targets = {targets}
+                for dst in targets:
+                    transitions[src_key].append(
+                        (str(symbol.value), state_key(label, dst))
+                    )
+
+    nodes = set(graph.nodes())
+    if start_nodes is None:
+        start_nodes = nodes
+    if final_nodes is None:
+        final_nodes = nodes
+    start_nodes = set(start_nodes)
+    final_nodes = set(final_nodes)
+
+    graph_edges = defaultdict(list)
+    for u, v, data in graph.edges(data=True):
+        label = data.get("label")
+        if label is not None:
+            graph_edges[u].append((str(label), v))
+
+    gss_edges = defaultdict(set)
+    popped = defaultdict(set)
+
+    queue = deque()
+    pending = set()
+    handled = set()
+
+    def enqueue(descriptor) -> None:
+        if descriptor not in handled and descriptor not in pending:
+            pending.add(descriptor)
+            queue.append(descriptor)
+
+    for node in start_nodes:
+        for state in box_start_states[initial_label]:
+            gss_vertex = (state, node)
+            enqueue((state, node, gss_vertex, node))
+
+    result = set()
+
+    while queue:
+        descriptor = queue.popleft()
+        pending.discard(descriptor)
+        if descriptor in handled:
+            continue
+        handled.add(descriptor)
+
+        state, node, stack_top, range_start = descriptor
+        box_label = state[0]
+
+        for symbol, next_state in transitions.get(state, ()):
+            if symbol in nonterminals:
+                continue
+            for edge_label, next_node in graph_edges.get(node, ()):
+                if edge_label == symbol:
+                    enqueue((next_state, next_node, stack_top, range_start))
+
+        if (
+            box_label == initial_label
+            and state in box_final_states[initial_label]
+            and range_start in start_nodes
+            and node in final_nodes
+        ):
+            result.add((range_start, node))
+
+        if state in box_final_states[box_label]:
+            popped[(stack_top, box_label)].add(node)
+            for called, return_state, caller_start, previous_top in list(
+                gss_edges.get(stack_top, ())
+            ):
+                if called == box_label:
+                    enqueue((return_state, node, previous_top, caller_start))
+
+        for symbol, return_state in transitions.get(state, ()):
+            if symbol not in nonterminals:
+                continue
+
+            call_vertex = (state, node)
+            for callee_start in box_start_states[symbol]:
+                enqueue((callee_start, node, call_vertex, node))
+
+            edge = (symbol, return_state, range_start, stack_top)
+            if edge not in gss_edges[call_vertex]:
+                gss_edges[call_vertex].add(edge)
+                for end_node in list(popped.get((call_vertex, symbol), ())):
+                    enqueue((return_state, end_node, stack_top, range_start))
+
+    return result
